@@ -4,3 +4,7 @@ package logger
 type Writer interface {
 	Log(Level, string, ...interface{})
 }
+
+type WriterWithConfSource interface {
+	Log(Level, string, ...interface{})
+}

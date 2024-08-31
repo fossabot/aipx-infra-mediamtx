@@ -3,6 +3,7 @@ package playback
 
 import (
 	"errors"
+	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"net"
 	"net/http"
 	"sync"
@@ -35,8 +36,9 @@ type Server struct {
 	AuthManager    serverAuthManager
 	Parent         logger.Writer
 
-	httpServer *httpp.WrappedServer
-	mutex      sync.RWMutex
+	httpServer      *httpp.WrappedServer
+	mutex           sync.RWMutex
+	externalCmdPool *externalcmd.Pool
 }
 
 // Initialize initializes Server.
@@ -51,6 +53,8 @@ func (s *Server) Initialize() error {
 	group.GET("/get", s.onGet)
 
 	network, address := restrictnetwork.Restrict("tcp", s.Address)
+
+	s.externalCmdPool = externalcmd.NewPool()
 
 	s.httpServer = &httpp.WrappedServer{
 		Network:     network,

@@ -182,6 +182,7 @@ type Path struct {
 	RunOnUnread                string         `json:"runOnUnread"`
 	RunOnRecordSegmentCreate   string         `json:"runOnRecordSegmentCreate"`
 	RunOnRecordSegmentComplete string         `json:"runOnRecordSegmentComplete"`
+	RunOnGet                   string         `json:"runOnGet"`
 }
 
 func (pconf *Path) setDefaults() {

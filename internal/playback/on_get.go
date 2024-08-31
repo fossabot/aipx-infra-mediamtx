@@ -3,6 +3,8 @@ package playback
 import (
 	"errors"
 	"fmt"
+	"github.com/bluenviron/mediamtx/internal/externalcmd"
+	"github.com/bluenviron/mediamtx/internal/hooks"
 	"net"
 	"net/http"
 	"os"
@@ -23,7 +25,7 @@ type writerWrapper struct {
 func (w *writerWrapper) Write(p []byte) (int, error) {
 	if !w.written {
 		w.written = true
-		w.ctx.Header("Accept-Ranges", "none")
+		w.ctx.Header("Accept-Ranges", "bytes")
 		w.ctx.Header("Content-Type", "video/mp4")
 	}
 	return w.ctx.Writer.Write(p)
@@ -112,7 +114,10 @@ func seekAndMux(
 }
 
 func (s *Server) onGet(ctx *gin.Context) {
+	var env externalcmd.Environment = make(map[string]string)
+
 	pathName := ctx.Query("path")
+	query := ctx.Request.URL.RawQuery
 
 	if !s.doAuth(ctx, pathName) {
 		return
@@ -130,6 +135,22 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
+	pathConf, err := s.safeFindPathConf(pathName)
+	if err != nil {
+		s.writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	onGetHook := hooks.OnGet(hooks.OnGetParams{
+		Logger:          s.Parent,
+		ExternalCmdPool: s.externalCmdPool,
+		Conf:            pathConf,
+		//Conf: &s.Parent.GetConf().PathDefaults,
+		ExternalCmdEnv: env,
+		Query:          query,
+	})
+	defer onGetHook()
+
 	ww := &writerWrapper{ctx: ctx}
 	var m muxer
 
@@ -146,12 +167,6 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
-	pathConf, err := s.safeFindPathConf(pathName)
-	if err != nil {
-		s.writeError(ctx, http.StatusBadRequest, err)
-		return
-	}
-
 	segments, err := findSegmentsInTimespan(pathConf, pathName, start, duration)
 	if err != nil {
 		if errors.Is(err, errNoSegmentsFound) {
@@ -162,6 +177,7 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
+	ctx.Writer.WriteHeader(http.StatusPartialContent)
 	err = seekAndMux(pathConf.RecordFormat, segments, start, duration, m)
 	if err != nil {
 		// user aborted the download
