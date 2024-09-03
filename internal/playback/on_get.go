@@ -141,16 +141,6 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
-	onGetHook := hooks.OnGet(hooks.OnGetParams{
-		Logger:          s.Parent,
-		ExternalCmdPool: s.externalCmdPool,
-		Conf:            pathConf,
-		//Conf: &s.Parent.GetConf().PathDefaults,
-		ExternalCmdEnv: env,
-		Query:          query,
-	})
-	defer onGetHook()
-
 	ww := &writerWrapper{ctx: ctx}
 	var m muxer
 
@@ -176,6 +166,24 @@ func (s *Server) onGet(ctx *gin.Context) {
 		}
 		return
 	}
+
+	var paths []string
+	for _, segment := range segments {
+		paths = append(paths, segment.Fpath)
+	}
+
+	onGetHook := hooks.OnGet(hooks.OnGetParams{
+		Logger:          s.Parent,
+		ExternalCmdPool: s.externalCmdPool,
+		Conf:            pathConf,
+		ExternalCmdEnv:  env,
+		Query:           query,
+		Start:           start,
+		Duration:        duration,
+		PathName:        pathName,
+		SegmentPaths:    paths,
+	})
+	defer onGetHook()
 
 	ctx.Writer.WriteHeader(http.StatusPartialContent)
 	err = seekAndMux(pathConf.RecordFormat, segments, start, duration, m)
