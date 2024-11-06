@@ -434,9 +434,6 @@ const onRemoteAnswer = (sdp) => {
 };
 
 const sendOffer = (offer) => {
-	const thing = new URL('whep', window.location.href);
-	console.log(thing.href, window.location.search);
-	console.log(offer.sdp);
 	fetch(new URL('whep', window.location.href) + window.location.search, {
 		method: 'POST',
 		headers: {
@@ -463,14 +460,18 @@ const sendOffer = (offer) => {
             }
 
             const basePath = window.location.href.replace(/\/[^/]*$/, '');
+            console.log('basePath', basePath);
+						
 
             const baseLastSegment = basePath.split('/').pop();
+            console.log('baseLastSegment', baseLastSegment);
             if (locationHeader.startsWith(baseLastSegment)) {
                 locationHeader = locationHeader.substring(baseLastSegment.length);
                 if (locationHeader.startsWith('/')) {
                     locationHeader = locationHeader.slice(1); // Remove leading slash if present
                 }
             }
+            console.log('locationHeader', locationHeader);
 
             sessionUrl = new URL(locationHeader, basePath).toString();
             console.log('sessionUrl', sessionUrl, res.headers.get('location'), window.location.href);
@@ -517,8 +518,6 @@ const onTrack = (evt) => {
 };
 
 const requestICEServers = () => {
-	const thing = new URL('whep', window.location.href);
-	console.log(thing.href, window.location.search);
 	fetch(new URL('whep', window.location.href) + window.location.search, {
 		method: 'OPTIONS',
 	})
