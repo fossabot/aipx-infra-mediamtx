@@ -455,18 +455,24 @@ const sendOffer = (offer) => {
 
             let locationHeader = res.headers.get('location');
 
+// Ensure locationHeader doesn't have a leading slash so it can be appended correctly
             if (locationHeader.startsWith('/')) {
                 locationHeader = locationHeader.slice(1);
             }
 
-            const basePath = window.location.href.replace(/\/[^/]*$/, '');
+            const basePath = window.location.href.replace(/\/[^/]*$/, ''); // Remove the last segment of the URL
             console.log('basePath', basePath);
-						
 
             const baseLastSegment = basePath.split('/').pop();
             console.log('baseLastSegment', baseLastSegment);
-            if (locationHeader.startsWith(baseLastSegment)) {
-                locationHeader = locationHeader.substring(baseLastSegment.length);
+
+// Get the first segment of locationHeader to check for duplication
+            const locationFirstSegment = locationHeader.split('/')[0];
+            console.log('locationFirstSegment', locationFirstSegment);
+
+// If the first segment of locationHeader matches the last segment of basePath, remove it
+            if (locationFirstSegment === baseLastSegment) {
+                locationHeader = locationHeader.substring(locationFirstSegment.length);
                 if (locationHeader.startsWith('/')) {
                     locationHeader = locationHeader.slice(1); // Remove leading slash if present
                 }
