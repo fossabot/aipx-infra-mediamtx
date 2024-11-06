@@ -434,6 +434,7 @@ const onRemoteAnswer = (sdp) => {
 };
 
 const sendOffer = (offer) => {
+	console.log('window.location.href', window.location.href);
 	fetch(new URL('whep', window.location.href) + window.location.search, {
 		method: 'POST',
 		headers: {
