@@ -462,7 +462,17 @@ const sendOffer = (offer) => {
                 locationHeader = locationHeader.slice(1);
             }
 
-            sessionUrl = new URL(locationHeader, window.location.href).toString();
+            const basePath = window.location.href.replace(/\/[^/]*$/, '');
+
+            const baseLastSegment = basePath.split('/').pop();
+            if (locationHeader.startsWith(baseLastSegment)) {
+                locationHeader = locationHeader.substring(baseLastSegment.length);
+                if (locationHeader.startsWith('/')) {
+                    locationHeader = locationHeader.slice(1); // Remove leading slash if present
+                }
+            }
+
+            sessionUrl = new URL(locationHeader, basePath).toString();
             console.log('sessionUrl', sessionUrl, res.headers.get('location'), window.location.href);
 
 			return res.text()
