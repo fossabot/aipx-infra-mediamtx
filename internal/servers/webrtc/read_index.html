@@ -434,7 +434,8 @@ const onRemoteAnswer = (sdp) => {
 };
 
 const sendOffer = (offer) => {
-	console.log('window.location.href', window.location.href);
+	const thing = new URL('whep', window.location.href);
+	console.log(thing.href, window.location.search);
 	fetch(new URL('whep', window.location.href) + window.location.search, {
 		method: 'POST',
 		headers: {
@@ -455,6 +456,7 @@ const sendOffer = (offer) => {
 			}
 
 			sessionUrl = new URL(res.headers.get('location'), window.location.href).toString();
+            console.log('sessionUrl', sessionUrl);
 
 			return res.text()
 				.then((sdp) => onRemoteAnswer(sdp));
@@ -498,6 +500,8 @@ const onTrack = (evt) => {
 };
 
 const requestICEServers = () => {
+	const thing = new URL('whep', window.location.href);
+	console.log(thing.href, window.location.search);
 	fetch(new URL('whep', window.location.href) + window.location.search, {
 		method: 'OPTIONS',
 	})
