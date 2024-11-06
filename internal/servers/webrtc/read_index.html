@@ -455,57 +455,22 @@ const sendOffer = (offer) => {
 
             let locationHeader = res.headers.get('location');
 
-// Ensure locationHeader doesn't have a leading slash so that it appends correctly
             if (locationHeader.startsWith('/')) {
                 locationHeader = locationHeader.slice(1);
             }
 
-// Get the base path by removing everything after the last "/" in window.location.href
             const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-            console.log('basePath', basePath);
-
-// Combine basePath and locationHeader using new URL
-// Check if the last segment of basePath matches the first segment of locationHeader to prevent duplication
-            const baseLastSegment = basePath.split('/').filter(Boolean).pop();
+           const baseLastSegment = basePath.split('/').filter(Boolean).pop();
             const locationFirstSegment = locationHeader.split('/')[0];
 
-            if (locationFirstSegment === baseLastSegment) {
-                // Remove the first segment from locationHeader if it matches the last segment of basePath
-                locationHeader = locationHeader.substring(locationFirstSegment.length);
-                if (locationHeader.startsWith('/')) {
-                    locationHeader = locationHeader.slice(1); // Remove leading slash if present
-                }
-            }
-            console.log('locationHeader after trimming', locationHeader);
-
-            /*let locationHeader = res.headers.get('location');
-
-// Ensure locationHeader doesn't have a leading slash so it can be appended correctly
-            if (locationHeader.startsWith('/')) {
-                locationHeader = locationHeader.slice(1);
-            }
-
-            const basePath = window.location.href.replace(/\/[^/]*$/, ''); // Remove the last segment of the URL
-            console.log('basePath', basePath);
-
-            const baseLastSegment = basePath.split('/').pop();
-            console.log('baseLastSegment', baseLastSegment);
-
-// Get the first segment of locationHeader to check for duplication
-            const locationFirstSegment = locationHeader.split('/')[0];
-            console.log('locationFirstSegment', locationFirstSegment);
-
-// If the first segment of locationHeader matches the last segment of basePath, remove it
             if (locationFirstSegment === baseLastSegment) {
                 locationHeader = locationHeader.substring(locationFirstSegment.length);
                 if (locationHeader.startsWith('/')) {
                     locationHeader = locationHeader.slice(1); // Remove leading slash if present
                 }
             }
-            console.log('locationHeader', locationHeader);*/
 
             sessionUrl = new URL(locationHeader, basePath).toString();
-            console.log('sessionUrl', sessionUrl, res.headers.get('location'), window.location.href);
 
 			return res.text()
 				.then((sdp) => onRemoteAnswer(sdp));
