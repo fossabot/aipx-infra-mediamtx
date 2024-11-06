@@ -456,7 +456,13 @@ const sendOffer = (offer) => {
 				throw new Error(`bad status code ${res.status}`);
 			}
 
-			sessionUrl = new URL(res.headers.get('location'), window.location.href).toString();
+            let locationHeader = res.headers.get('location');
+
+            if (locationHeader.startsWith('/')) {
+                locationHeader = locationHeader.slice(1);
+            }
+
+            sessionUrl = new URL(locationHeader, window.location.href).toString();
             console.log('sessionUrl', sessionUrl, res.headers.get('location'), window.location.href);
 
 			return res.text()
