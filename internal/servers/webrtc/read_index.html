@@ -457,7 +457,7 @@ const sendOffer = (offer) => {
 			}
 
 			sessionUrl = new URL(res.headers.get('location'), window.location.href).toString();
-            console.log('sessionUrl', sessionUrl);
+            console.log('sessionUrl', sessionUrl, res.headers.get('location'), window.location.href);
 
 			return res.text()
 				.then((sdp) => onRemoteAnswer(sdp));
