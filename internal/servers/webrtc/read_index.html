@@ -453,14 +453,20 @@ const sendOffer = (offer) => {
 				throw new Error(`bad status code ${res.status}`);
 			}
 
-            let locationHeader = res.headers.get('location');
 
+			/**
+			 * constructs the url properly with the window.location.href
+             * res.headers.get('location') = "/<camera id>/whep/<session id>"
+             * window.location.href (when coming from nginx) = "http://video.aipx.co/live/<destination ip>/<camera id>/webrtc"
+             * we needed to combine them so that we end up with:
+             * http://video.aipx.co/live/<destination ip>/<camera id>/whep/<session id>
+			 **/
+            let locationHeader = res.headers.get('location');
             if (locationHeader.startsWith('/')) {
                 locationHeader = locationHeader.slice(1);
             }
-
             const basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-           const baseLastSegment = basePath.split('/').filter(Boolean).pop();
+            const baseLastSegment = basePath.split('/').filter(Boolean).pop();
             const locationFirstSegment = locationHeader.split('/')[0];
 
             if (locationFirstSegment === baseLastSegment) {

@@ -71,6 +71,22 @@ const loadStream = () => {
 	if (Hls.isSupported()) {
 		const hls = new Hls({
 			maxLiveSyncPlaybackRate: 1.5,
+            fragLoadPolicy: {
+                default: {
+                    maxTimeToFirstByteMs: 300000,
+                    maxLoadTimeMs: 300000,
+                    timeoutRetry: {
+                        maxNumRetry: 2,
+                        retryDelayMs: 0,
+                        maxRetryDelayMs: 0
+                    },
+                    errorRetry: {
+                        maxNumRetry: 0,
+                        retryDelayMs: 1000,
+                        maxRetryDelayMs: 8000
+                    }
+                }
+            }
 		});
 
 		hls.on(Hls.Events.ERROR, (evt, data) => {
