@@ -2,7 +2,6 @@
 package playback
 
 import (
-	"errors"
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"net"
 	"net/http"
@@ -33,11 +32,9 @@ type Server struct {
 	PathConfs      map[string]*conf.Path
 	AuthManager    serverAuthManager
 	Parent         logger.Writer
-
-  httpServer      *httpp.WrappedServer
+	httpServer      *httpp.WrappedServer
 	mutex           sync.RWMutex
 	externalCmdPool *externalcmd.Pool
-	httpServer *httpp.Server
 	
 }
 
