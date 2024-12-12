@@ -14,6 +14,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/formats/fmp4"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/logger"
+	"github.com/bluenviron/mediamtx/internal/recordstore"
 	"github.com/gin-gonic/gin"
 )
 
@@ -43,7 +44,7 @@ func parseDuration(raw string) (time.Duration, error) {
 
 func seekAndMux(
 	recordFormat conf.RecordFormat,
-	segments []*Segment,
+	segments []*recordstore.Segment,
 	start time.Time,
 	duration time.Duration,
 	m muxer,
@@ -157,9 +158,15 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
-	segments, err := findSegmentsInTimespan(pathConf, pathName, start, duration)
+	pathConf, err := s.safeFindPathConf(pathName)
 	if err != nil {
-		if errors.Is(err, errNoSegmentsFound) {
+		s.writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	segments, err := recordstore.FindSegmentsInTimespan(pathConf, pathName, start, duration)
+	if err != nil {
+		if errors.Is(err, recordstore.ErrNoSegmentsFound) {
 			s.writeError(ctx, http.StatusNotFound, err)
 		} else {
 			s.writeError(ctx, http.StatusBadRequest, err)
@@ -196,7 +203,7 @@ func (s *Server) onGet(ctx *gin.Context) {
 
 		// nothing has been written yet; send back JSON
 		if !ww.written {
-			if errors.Is(err, errNoSegmentsFound) {
+			if errors.Is(err, recordstore.ErrNoSegmentsFound) {
 				s.writeError(ctx, http.StatusNotFound, err)
 			} else {
 				s.writeError(ctx, http.StatusBadRequest, err)

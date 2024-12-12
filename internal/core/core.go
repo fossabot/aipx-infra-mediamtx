@@ -3,12 +3,12 @@ package core
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"time"
 
@@ -25,7 +25,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/metrics"
 	"github.com/bluenviron/mediamtx/internal/playback"
 	"github.com/bluenviron/mediamtx/internal/pprof"
-	"github.com/bluenviron/mediamtx/internal/record"
+	"github.com/bluenviron/mediamtx/internal/recordcleaner"
 	"github.com/bluenviron/mediamtx/internal/rlimit"
 	"github.com/bluenviron/mediamtx/internal/servers/hls"
 	"github.com/bluenviron/mediamtx/internal/servers/rtmp"
@@ -34,7 +34,10 @@ import (
 	"github.com/bluenviron/mediamtx/internal/servers/webrtc"
 )
 
-var version = "v0.0.0"
+//go:generate go run ./versiongetter
+
+//go:embed VERSION
+var version []byte
 
 var defaultConfPaths = []string{
 	"rtsp-simple-server.yml",
@@ -42,38 +45,6 @@ var defaultConfPaths = []string{
 	"/usr/local/etc/mediamtx.yml",
 	"/usr/etc/mediamtx.yml",
 	"/etc/mediamtx/mediamtx.yml",
-}
-
-func gatherCleanerEntries(paths map[string]*conf.Path) []record.CleanerEntry {
-	out := make(map[record.CleanerEntry]struct{})
-
-	for _, pa := range paths {
-		if pa.Record && pa.RecordDeleteAfter != 0 {
-			entry := record.CleanerEntry{
-				Path:        pa.RecordPath,
-				Format:      pa.RecordFormat,
-				DeleteAfter: time.Duration(pa.RecordDeleteAfter),
-			}
-			out[entry] = struct{}{}
-		}
-	}
-
-	out2 := make([]record.CleanerEntry, len(out))
-	i := 0
-
-	for v := range out {
-		out2[i] = v
-		i++
-	}
-
-	sort.Slice(out2, func(i, j int) bool {
-		if out2[i].Path != out2[j].Path {
-			return out2[i].Path < out2[j].Path
-		}
-		return out2[i].DeleteAfter < out2[j].DeleteAfter
-	})
-
-	return out2
 }
 
 var cli struct {
@@ -92,7 +63,7 @@ type Core struct {
 	authManager     *auth.Manager
 	metrics         *metrics.Metrics
 	pprof           *pprof.PPROF
-	recordCleaner   *record.Cleaner
+	recordCleaner   *recordcleaner.Cleaner
 	playbackServer  *playback.Server
 	pathManager     *pathManager
 	rtspServer      *rtsp.Server
@@ -115,7 +86,7 @@ type Core struct {
 // New allocates a Core.
 func New(args []string) (*Core, bool) {
 	parser, err := kong.New(&cli,
-		kong.Description("MediaMTX "+version),
+		kong.Description("MediaMTX "+string(version)),
 		kong.UsageOnError(),
 		kong.ValueFormatter(func(value *kong.Value) string {
 			switch value.Name {
@@ -134,7 +105,7 @@ func New(args []string) (*Core, bool) {
 	parser.FatalIfErrorf(err)
 
 	if cli.Version {
-		fmt.Println(version)
+		fmt.Println(string(version))
 		os.Exit(0)
 	}
 
@@ -333,12 +304,10 @@ func (p *Core) createResources(initial bool) error {
 		p.pprof = i
 	}
 
-	cleanerEntries := gatherCleanerEntries(p.conf.Paths)
-	if len(cleanerEntries) != 0 &&
-		p.recordCleaner == nil {
-		p.recordCleaner = &record.Cleaner{
-			Entries: cleanerEntries,
-			Parent:  p,
+	if p.recordCleaner == nil {
+		p.recordCleaner = &recordcleaner.Cleaner{
+			PathConfs: p.conf.Paths,
+			Parent:    p,
 		}
 		p.recordCleaner.Initialize()
 	}
@@ -475,7 +444,6 @@ func (p *Core) createResources(initial bool) error {
 			Address:             p.conf.RTMPAddress,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
-			WriteQueueSize:      p.conf.WriteQueueSize,
 			IsTLS:               false,
 			ServerCert:          "",
 			ServerKey:           "",
@@ -506,7 +474,6 @@ func (p *Core) createResources(initial bool) error {
 			Address:             p.conf.RTMPSAddress,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
-			WriteQueueSize:      p.conf.WriteQueueSize,
 			IsTLS:               true,
 			ServerCert:          p.conf.RTMPServerCert,
 			ServerKey:           p.conf.RTMPServerKey,
@@ -546,7 +513,6 @@ func (p *Core) createResources(initial bool) error {
 			SegmentMaxSize:  p.conf.HLSSegmentMaxSize,
 			Directory:       p.conf.HLSDirectory,
 			ReadTimeout:     p.conf.ReadTimeout,
-			WriteQueueSize:  p.conf.WriteQueueSize,
 			MuxerCloseAfter: p.conf.HLSMuxerCloseAfter,
 			PathManager:     p.pathManager,
 			Parent:          p,
@@ -574,7 +540,6 @@ func (p *Core) createResources(initial bool) error {
 			AllowOrigin:           p.conf.WebRTCAllowOrigin,
 			TrustedProxies:        p.conf.WebRTCTrustedProxies,
 			ReadTimeout:           p.conf.ReadTimeout,
-			WriteQueueSize:        p.conf.WriteQueueSize,
 			LocalUDPAddress:       p.conf.WebRTCLocalUDPAddress,
 			LocalTCPAddress:       p.conf.WebRTCLocalTCPAddress,
 			IPsFromInterfaces:     p.conf.WebRTCIPsFromInterfaces,
@@ -605,7 +570,6 @@ func (p *Core) createResources(initial bool) error {
 			RTSPAddress:         p.conf.RTSPAddress,
 			ReadTimeout:         p.conf.ReadTimeout,
 			WriteTimeout:        p.conf.WriteTimeout,
-			WriteQueueSize:      p.conf.WriteQueueSize,
 			UDPMaxPayloadSize:   p.conf.UDPMaxPayloadSize,
 			RunOnConnect:        p.conf.RunOnConnect,
 			RunOnConnectRestart: p.conf.RunOnConnectRestart,
@@ -707,8 +671,10 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		closeLogger
 
 	closeRecorderCleaner := newConf == nil ||
-		!reflect.DeepEqual(gatherCleanerEntries(newConf.Paths), gatherCleanerEntries(p.conf.Paths)) ||
 		closeLogger
+	if !closeRecorderCleaner && !reflect.DeepEqual(newConf.Paths, p.conf.Paths) {
+		p.recordCleaner.ReloadPathConfs(newConf.Paths)
+	}
 
 	closePlaybackServer := newConf == nil ||
 		newConf.Playback != p.conf.Playback ||
@@ -788,7 +754,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.RTMPAddress != p.conf.RTMPAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteTimeout != p.conf.WriteTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||
@@ -803,7 +768,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.RTMPSAddress != p.conf.RTMPSAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteTimeout != p.conf.WriteTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.RTMPServerCert != p.conf.RTMPServerCert ||
 		newConf.RTMPServerKey != p.conf.RTMPServerKey ||
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
@@ -830,7 +794,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.HLSSegmentMaxSize != p.conf.HLSSegmentMaxSize ||
 		newConf.HLSDirectory != p.conf.HLSDirectory ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.HLSMuxerCloseAfter != p.conf.HLSMuxerCloseAfter ||
 		closePathManager ||
 		closeMetrics ||
@@ -845,7 +808,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.WebRTCAllowOrigin != p.conf.WebRTCAllowOrigin ||
 		!reflect.DeepEqual(newConf.WebRTCTrustedProxies, p.conf.WebRTCTrustedProxies) ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.WebRTCLocalUDPAddress != p.conf.WebRTCLocalUDPAddress ||
 		newConf.WebRTCLocalTCPAddress != p.conf.WebRTCLocalTCPAddress ||
 		newConf.WebRTCIPsFromInterfaces != p.conf.WebRTCIPsFromInterfaces ||
@@ -864,7 +826,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		newConf.RTSPAddress != p.conf.RTSPAddress ||
 		newConf.ReadTimeout != p.conf.ReadTimeout ||
 		newConf.WriteTimeout != p.conf.WriteTimeout ||
-		newConf.WriteQueueSize != p.conf.WriteQueueSize ||
 		newConf.UDPMaxPayloadSize != p.conf.UDPMaxPayloadSize ||
 		newConf.RunOnConnect != p.conf.RunOnConnect ||
 		newConf.RunOnConnectRestart != p.conf.RunOnConnectRestart ||

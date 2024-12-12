@@ -75,7 +75,7 @@ func TestConfFromFile(t *testing.T) {
 			RPICameraTextOverlay:       "%Y-%m-%d %H:%M:%S - MediaMTX",
 			RPICameraCodec:             "auto",
 			RPICameraIDRPeriod:         60,
-			RPICameraBitrate:           1000000,
+			RPICameraBitrate:           5000000,
 			RPICameraProfile:           "main",
 			RPICameraLevel:             "4.1",
 			RunOnDemandStartTimeout:    5 * StringDuration(time.Second),
@@ -269,6 +269,16 @@ func TestConfErrors(t *testing.T) {
 			"non existent parameter 1",
 			`invalid: param`,
 			"json: unknown field \"invalid\"",
+		},
+		{
+			"invalid readTimeout",
+			"readTimeout: 0s\n",
+			"'readTimeout' must be greater than zero",
+		},
+		{
+			"invalid writeTimeout",
+			"writeTimeout: 0s\n",
+			"'writeTimeout' must be greater than zero",
 		},
 		{
 			"invalid writeQueueSize",

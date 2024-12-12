@@ -17,8 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var errNoSegmentsFound = errors.New("no recording segments found")
-
 type serverAuthManager interface {
 	Authenticate(req *auth.Request) error
 }
@@ -36,9 +34,11 @@ type Server struct {
 	AuthManager    serverAuthManager
 	Parent         logger.Writer
 
-	httpServer      *httpp.WrappedServer
+  httpServer      *httpp.WrappedServer
 	mutex           sync.RWMutex
 	externalCmdPool *externalcmd.Pool
+	httpServer *httpp.Server
+	
 }
 
 // Initialize initializes Server.
@@ -46,11 +46,10 @@ func (s *Server) Initialize() error {
 	router := gin.New()
 	router.SetTrustedProxies(s.TrustedProxies.ToTrustedProxies()) //nolint:errcheck
 
-	router.NoRoute(s.middlewareOrigin)
-	group := router.Group("/", s.middlewareOrigin)
+	router.Use(s.middlewareOrigin)
 
-	group.GET("/list", s.onList)
-	group.GET("/get", s.onGet)
+	router.GET("/list", s.onList)
+	router.GET("/get", s.onGet)
 
 	network, address := restrictnetwork.Restrict("tcp", s.Address)
 
@@ -106,46 +105,40 @@ func (s *Server) safeFindPathConf(name string) (*conf.Path, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	_, pathConf, _, err := conf.FindPathConf(s.PathConfs, name)
+	pathConf, _, err := conf.FindPathConf(s.PathConfs, name)
 	return pathConf, err
 }
 
 func (s *Server) middlewareOrigin(ctx *gin.Context) {
-	ctx.Writer.Header().Set("Access-Control-Allow-Origin", s.AllowOrigin)
-	ctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	ctx.Header("Access-Control-Allow-Origin", s.AllowOrigin)
+	ctx.Header("Access-Control-Allow-Credentials", "true")
 
 	// preflight requests
 	if ctx.Request.Method == http.MethodOptions &&
 		ctx.Request.Header.Get("Access-Control-Request-Method") != "" {
-		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
-		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Authorization")
+		ctx.Header("Access-Control-Allow-Methods", "OPTIONS, GET")
+		ctx.Header("Access-Control-Allow-Headers", "Authorization")
 		ctx.AbortWithStatus(http.StatusNoContent)
 		return
 	}
 }
 
 func (s *Server) doAuth(ctx *gin.Context, pathName string) bool {
-	user, pass, hasCredentials := ctx.Request.BasicAuth()
-
 	err := s.AuthManager.Authenticate(&auth.Request{
-		User:   user,
-		Pass:   pass,
-		Query:  ctx.Request.URL.RawQuery,
-		IP:     net.ParseIP(ctx.ClientIP()),
-		Action: conf.AuthActionPlayback,
-		Path:   pathName,
+		IP:          net.ParseIP(ctx.ClientIP()),
+		Action:      conf.AuthActionPlayback,
+		Path:        pathName,
+		HTTPRequest: ctx.Request,
 	})
 	if err != nil {
-		if !hasCredentials {
+		if err.(*auth.Error).AskCredentials { //nolint:errorlint
 			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
 			ctx.Writer.WriteHeader(http.StatusUnauthorized)
 			return false
 		}
 
-		var terr auth.Error
-		errors.As(err, &terr)
-
-		s.Log(logger.Info, "connection %v failed to authenticate: %v", httpp.RemoteAddr(ctx), terr.Message)
+		s.Log(logger.Info, "connection %v failed to authenticate: %v",
+			httpp.RemoteAddr(ctx), err.(*auth.Error).Message) //nolint:errorlint
 
 		// wait some seconds to mitigate brute force attacks
 		<-time.After(auth.PauseAfterError)

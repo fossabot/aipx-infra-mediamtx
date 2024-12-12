@@ -7,7 +7,6 @@ WORKDIR /s
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
-ARG VERSION
 ENV CGO_ENABLED 0
 RUN rm -rf tmp binaries
 RUN mkdir tmp binaries
@@ -44,10 +43,11 @@ RUN go generate ./...
 #RUN go build -ldflags "-X github.com/bluenviron/mediamtx/internal/core.version=$$VERSION" -o tmp/$(BINARY_NAME)
 #RUN tar -C tmp -czf binaries/$(BINARY_NAME)_$${VERSION}_linux_armv7.tar.gz --owner=0 --group=0 $(BINARY_NAME) mediamtx.yml LICENSE
 
+
 FROM build-base AS build-linux-arm64
 ENV GOOS=linux GOARCH=arm64
-RUN go build -ldflags "-X github.com/bluenviron/mediamtx/internal/core.version=$$VERSION" -o tmp/$(BINARY_NAME)
-RUN tar -C tmp -czf binaries/$(BINARY_NAME)_$${VERSION}_linux_arm64v8.tar.gz --owner=0 --group=0 $(BINARY_NAME) mediamtx.yml LICENSE
+RUN go build -o "tmp/$(BINARY_NAME)"
+RUN tar -C tmp -czf "binaries/$(BINARY_NAME)_$$(cat internal/core/VERSION)_linux_arm64v8.tar.gz" --owner=0 --group=0 "$(BINARY_NAME)" mediamtx.yml LICENSE
 
 FROM $(BASE_IMAGE)
 #COPY --from=build-windows-amd64 /s/binaries /s/binaries
@@ -62,7 +62,6 @@ export DOCKERFILE_BINARIES
 
 binaries:
 	echo "$$DOCKERFILE_BINARIES" | DOCKER_BUILDKIT=1 docker build . -f - \
-	--build-arg VERSION=$$(git describe --tags) \
 	-t temp
-	docker run --rm -v $(PWD):/out \
+	docker run --rm -v "$(PWD):/out" \
 	temp sh -c "rm -rf /out/binaries && cp -r /s/binaries /out/"

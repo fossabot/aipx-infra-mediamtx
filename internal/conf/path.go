@@ -46,15 +46,15 @@ func srtCheckPassphrase(passphrase string) error {
 }
 
 // FindPathConf returns the configuration corresponding to the given path name.
-func FindPathConf(pathConfs map[string]*Path, name string) (string, *Path, []string, error) {
+func FindPathConf(pathConfs map[string]*Path, name string) (*Path, []string, error) {
 	err := isValidPathName(name)
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("invalid path name: %w (%s)", err, name)
+		return nil, nil, fmt.Errorf("invalid path name: %w (%s)", err, name)
 	}
 
 	// normal path
 	if pathConf, ok := pathConfs[name]; ok {
-		return name, pathConf, nil, nil
+		return pathConf, nil, nil
 	}
 
 	// regular expression-based path
@@ -62,22 +62,22 @@ func FindPathConf(pathConfs map[string]*Path, name string) (string, *Path, []str
 		if pathConf.Regexp != nil && pathConfName != "all" && pathConfName != "all_others" {
 			m := pathConf.Regexp.FindStringSubmatch(name)
 			if m != nil {
-				return pathConfName, pathConf, m, nil
+				return pathConf, m, nil
 			}
 		}
 	}
 
-	// all_others
+	// process all_others after every other entry
 	for pathConfName, pathConf := range pathConfs {
 		if pathConfName == "all" || pathConfName == "all_others" {
 			m := pathConf.Regexp.FindStringSubmatch(name)
 			if m != nil {
-				return pathConfName, pathConf, m, nil
+				return pathConf, m, nil
 			}
 		}
 	}
 
-	return "", nil, nil, fmt.Errorf("path '%s' is not configured", name)
+	return nil, nil, fmt.Errorf("path '%s' is not configured", name)
 }
 
 // Path is a path configuration.
@@ -219,7 +219,7 @@ func (pconf *Path) setDefaults() {
 	pconf.RPICameraTextOverlay = "%Y-%m-%d %H:%M:%S - MediaMTX"
 	pconf.RPICameraCodec = "auto"
 	pconf.RPICameraIDRPeriod = 60
-	pconf.RPICameraBitrate = 1000000
+	pconf.RPICameraBitrate = 5000000
 	pconf.RPICameraProfile = "main"
 	pconf.RPICameraLevel = "4.1"
 
@@ -579,17 +579,7 @@ func (pconf *Path) Equal(other *Path) bool {
 
 // HasStaticSource checks whether the path has a static source.
 func (pconf Path) HasStaticSource() bool {
-	return strings.HasPrefix(pconf.Source, "rtsp://") ||
-		strings.HasPrefix(pconf.Source, "rtsps://") ||
-		strings.HasPrefix(pconf.Source, "rtmp://") ||
-		strings.HasPrefix(pconf.Source, "rtmps://") ||
-		strings.HasPrefix(pconf.Source, "http://") ||
-		strings.HasPrefix(pconf.Source, "https://") ||
-		strings.HasPrefix(pconf.Source, "udp://") ||
-		strings.HasPrefix(pconf.Source, "srt://") ||
-		strings.HasPrefix(pconf.Source, "whep://") ||
-		strings.HasPrefix(pconf.Source, "wheps://") ||
-		pconf.Source == "rpiCamera"
+	return pconf.Source != "publisher" && pconf.Source != "redirect"
 }
 
 // HasOnDemandStaticSource checks whether the path has a on demand static source.

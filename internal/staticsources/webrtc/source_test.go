@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluenviron/gortsplib/v4/pkg/format"
 	"github.com/pion/rtp"
 	pwebrtc "github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
@@ -27,10 +26,15 @@ func whipOffer(body []byte) *pwebrtc.SessionDescription {
 }
 
 func TestSource(t *testing.T) {
-	outgoingTracks := []*webrtc.OutgoingTrack{{Format: &format.Opus{
-		PayloadTyp:   111,
-		ChannelCount: 2,
-	}}}
+	outgoingTracks := []*webrtc.OutgoingTrack{{
+		Caps: pwebrtc.RTPCodecCapability{
+			MimeType:    "audio/opus",
+			ClockRate:   48000,
+			Channels:    2,
+			SDPFmtpLine: "minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1",
+		},
+	}}
+
 	pc := &webrtc.PeerConnection{
 		LocalRandomUDP:     true,
 		IPsFromInterfaces:  true,
@@ -77,7 +81,7 @@ func TestSource(t *testing.T) {
 				w.Write([]byte(answer.SDP))
 
 				go func() {
-					err3 := pc.WaitUntilConnected(context.Background())
+					err3 := pc.WaitUntilReady(context.Background())
 					require.NoError(t, err3)
 
 					err3 = outgoingTracks[0].WriteRTP(&rtp.Packet{

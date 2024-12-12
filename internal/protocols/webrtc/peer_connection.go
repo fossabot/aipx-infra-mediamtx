@@ -1,3 +1,4 @@
+// Package webrtc contains WebRTC utilities.
 package webrtc
 
 import (
@@ -84,14 +85,14 @@ type PeerConnection struct {
 	wr                *webrtc.PeerConnection
 	stateChangeMutex  sync.Mutex
 	newLocalCandidate chan *webrtc.ICECandidateInit
-	connected         chan struct{}
-	disconnected      chan struct{}
+	ready             chan struct{}
+	failed            chan struct{}
 	done              chan struct{}
 	gatheringDone     chan struct{}
 	incomingTrack     chan trackRecvPair
-
-	ctx       context.Context
-	ctxCancel context.CancelFunc
+	ctx               context.Context
+	ctxCancel         context.CancelFunc
+	incomingTracks    []*IncomingTrack
 }
 
 // Start starts the peer connection.
@@ -132,11 +133,6 @@ func (co *PeerConnection) Start() error {
 		audioSetupped := false
 
 		for _, tr := range co.OutgoingTracks {
-			params, err := tr.codecParameters()
-			if err != nil {
-				return err
-			}
-
 			var codecType webrtc.RTPCodecType
 			if tr.isVideo() {
 				codecType = webrtc.RTPCodecTypeVideo
@@ -146,7 +142,10 @@ func (co *PeerConnection) Start() error {
 				audioSetupped = true
 			}
 
-			err = mediaEngine.RegisterCodec(params, codecType)
+			err := mediaEngine.RegisterCodec(webrtc.RTPCodecParameters{
+				RTPCodecCapability: tr.Caps,
+				PayloadType:        96,
+			}, codecType)
 			if err != nil {
 				return err
 			}
@@ -214,8 +213,8 @@ func (co *PeerConnection) Start() error {
 	}
 
 	co.newLocalCandidate = make(chan *webrtc.ICECandidateInit)
-	co.connected = make(chan struct{})
-	co.disconnected = make(chan struct{})
+	co.ready = make(chan struct{})
+	co.failed = make(chan struct{})
 	co.done = make(chan struct{})
 	co.gatheringDone = make(chan struct{})
 	co.incomingTrack = make(chan trackRecvPair)
@@ -269,13 +268,22 @@ func (co *PeerConnection) Start() error {
 
 		switch state {
 		case webrtc.PeerConnectionStateConnected:
+			// PeerConnectionStateConnected can arrive twice, since state can
+			// switch from "disconnected" to "connected".
+			// contrarily, we're interested into emitting "ready" once.
+			select {
+			case <-co.ready:
+				return
+			default:
+			}
+
 			co.Log.Log(logger.Info, "peer connection established, local candidate: %v, remote candidate: %v",
 				co.LocalCandidate(), co.RemoteCandidate())
 
-			close(co.connected)
+			close(co.ready)
 
-		case webrtc.PeerConnectionStateDisconnected:
-			close(co.disconnected)
+		case webrtc.PeerConnectionStateFailed:
+			close(co.failed)
 
 		case webrtc.PeerConnectionStateClosed:
 			close(co.done)
@@ -287,7 +295,7 @@ func (co *PeerConnection) Start() error {
 			v := i.ToJSON()
 			select {
 			case co.newLocalCandidate <- &v:
-			case <-co.connected:
+			case <-co.ready:
 			case <-co.ctx.Done():
 			}
 		} else {
@@ -373,8 +381,8 @@ func (co *PeerConnection) waitGatheringDone(ctx context.Context) error {
 	}
 }
 
-// WaitUntilConnected waits until connection is established.
-func (co *PeerConnection) WaitUntilConnected(
+// WaitUntilReady waits until connection is established.
+func (co *PeerConnection) WaitUntilReady(
 	ctx context.Context,
 ) error {
 	t := time.NewTimer(time.Duration(co.HandshakeTimeout))
@@ -386,7 +394,7 @@ outer:
 		case <-t.C:
 			return fmt.Errorf("deadline exceeded while waiting connection")
 
-		case <-co.connected:
+		case <-co.ready:
 			break outer
 
 		case <-ctx.Done():
@@ -404,31 +412,32 @@ func (co *PeerConnection) GatherIncomingTracks(ctx context.Context) ([]*Incoming
 
 	maxTrackCount := len(sdp.MediaDescriptions)
 
-	var tracks []*IncomingTrack
-
 	t := time.NewTimer(time.Duration(co.TrackGatherTimeout))
 	defer t.Stop()
 
 	for {
 		select {
 		case <-t.C:
-			if len(tracks) != 0 {
-				return tracks, nil
+			if len(co.incomingTracks) != 0 {
+				return co.incomingTracks, nil
 			}
 			return nil, fmt.Errorf("deadline exceeded while waiting tracks")
 
 		case pair := <-co.incomingTrack:
-			track, err := newIncomingTrack(pair.track, pair.receiver, co.wr.WriteRTCP, co.Log)
-			if err != nil {
-				return nil, err
+			t := &IncomingTrack{
+				track:     pair.track,
+				receiver:  pair.receiver,
+				writeRTCP: co.wr.WriteRTCP,
+				log:       co.Log,
 			}
-			tracks = append(tracks, track)
+			t.initialize()
+			co.incomingTracks = append(co.incomingTracks, t)
 
-			if len(tracks) >= maxTrackCount {
-				return tracks, nil
+			if len(co.incomingTracks) >= maxTrackCount {
+				return co.incomingTracks, nil
 			}
 
-		case <-co.Disconnected():
+		case <-co.Failed():
 			return nil, fmt.Errorf("peer connection closed")
 
 		case <-ctx.Done():
@@ -437,14 +446,14 @@ func (co *PeerConnection) GatherIncomingTracks(ctx context.Context) ([]*Incoming
 	}
 }
 
-// Connected returns when connected.
-func (co *PeerConnection) Connected() <-chan struct{} {
-	return co.connected
+// Ready returns when ready.
+func (co *PeerConnection) Ready() <-chan struct{} {
+	return co.ready
 }
 
-// Disconnected returns when disconnected.
-func (co *PeerConnection) Disconnected() <-chan struct{} {
-	return co.disconnected
+// Failed returns when failed.
+func (co *PeerConnection) Failed() <-chan struct{} {
+	return co.failed
 }
 
 // NewLocalCandidate returns when there's a new local candidate.
@@ -477,6 +486,13 @@ func (co *PeerConnection) LocalCandidate() string {
 	}
 
 	return ""
+}
+
+// StartReading starts reading all incoming tracks.
+func (co *PeerConnection) StartReading() {
+	for _, track := range co.incomingTracks {
+		track.start()
+	}
 }
 
 // RemoteCandidate returns the remote candidate.
