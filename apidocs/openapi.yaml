@@ -462,6 +462,8 @@ components:
           type: string
         runOnRecordSegmentComplete:
           type: string
+        runOnGet:
+          type: string
 
     PathConfList:
       type: object
