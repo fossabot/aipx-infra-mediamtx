@@ -136,12 +136,6 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
-	pathConf, err := s.safeFindPathConf(pathName)
-	if err != nil {
-		s.writeError(ctx, http.StatusBadRequest, err)
-		return
-	}
-
 	ww := &writerWrapper{ctx: ctx}
 	var m muxer
 
