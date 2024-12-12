@@ -32,7 +32,7 @@ type Server struct {
 	PathConfs      map[string]*conf.Path
 	AuthManager    serverAuthManager
 	Parent         logger.Writer
-	httpServer      *http.WrappedServer
+	httpServer      *httpp.WrappedServer
 	mutex           sync.RWMutex
 	externalCmdPool *externalcmd.Pool
 	
