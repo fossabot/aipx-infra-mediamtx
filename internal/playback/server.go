@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
+    "github.com/bluenviron/mediamtx/internal/externalcmd"
+	
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/logger"
