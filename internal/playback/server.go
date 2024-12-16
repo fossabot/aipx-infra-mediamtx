@@ -34,6 +34,7 @@ type Server struct {
 	Parent         logger.Writer
 
 	httpServer *httpp.Server
+	externalCmdPool *externalcmd.Pool
 	mutex      sync.RWMutex
 }
 
@@ -48,6 +49,8 @@ func (s *Server) Initialize() error {
 	router.GET("/get", s.onGet)
 
 	network, address := restrictnetwork.Restrict("tcp", s.Address)
+
+    s.externalCmdPool = externalcmd.NewPool()
 
 	s.httpServer = &httpp.Server{
 		Network:     network,
