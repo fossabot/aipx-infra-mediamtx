@@ -345,18 +345,6 @@ const requestICEServers = () => {
 		});
 };
 
- const parseBoolString = (str, defaultVal) => {
-	str = (str || '');
-
-	if (['1', 'yes', 'true'].includes(str.toLowerCase())) {
-		return true;
-	}
-	if (['0', 'no', 'false'].includes(str.toLowerCase())) {
-		return false;
-	}
-	return defaultVal;
-};
-
 const loadAttributesFromQuery = () => {
   const params = new URLSearchParams(window.location.search);
   video.controls = parseBoolString(params.get('controls'), true);
