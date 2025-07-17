@@ -5,6 +5,7 @@
   <br>
 
   [![Test](https://github.com/bluenviron/mediamtx/workflows/test/badge.svg)](https://github.com/bluenviron/mediamtx/actions?query=workflow:test)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FBlue-Eye-Dev%2Faipx-infra-mediamtx.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FBlue-Eye-Dev%2Faipx-infra-mediamtx?ref=badge_shield)
   [![Lint](https://github.com/bluenviron/mediamtx/workflows/lint/badge.svg)](https://github.com/bluenviron/mediamtx/actions?query=workflow:lint)
   [![CodeCov](https://codecov.io/gh/bluenviron/mediamtx/branch/main/graph/badge.svg)](https://app.codecov.io/gh/bluenviron/mediamtx/branch/main)
   [![Release](https://img.shields.io/github/v/release/bluenviron/mediamtx)](https://github.com/bluenviron/mediamtx/releases)
@@ -2415,6 +2416,9 @@ All the code in this repository is released under the [MIT License](LICENSE). Co
 
 * hls.js, released under the [Apache License 2.0](https://github.com/video-dev/hls.js/blob/master/LICENSE)
 * all the dependencies listed into the [go.mod file](go.mod), which are all released under either the MIT license, BSD-3-Clause license or Apache License 2.0
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FBlue-Eye-Dev%2Faipx-infra-mediamtx.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FBlue-Eye-Dev%2Faipx-infra-mediamtx?ref=badge_large)
 
 ## Specifications
 
